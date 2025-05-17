@@ -1,4 +1,4 @@
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 import pandas as pd
 import numpy as np
 import ta
@@ -100,6 +100,41 @@ def calculate_bollinger_bands(
         'lower': bollinger.bollinger_lband()
     }
 
+def get_lookback_window(
+    rsi_window: int = 14,
+    macd_params: Optional[Dict[str, int]] = None,
+    ema_windows: Optional[List[int]] = None,
+    bb_params: Optional[Dict[str, int]] = None
+) -> int:
+    """
+    Calculate the required lookback window for all indicators.
+    
+    Args:
+        rsi_window (int, optional): RSI window period. Defaults to 14
+        macd_params (Optional[Dict[str, int]], optional): MACD parameters. Defaults to None
+        ema_windows (Optional[List[int]], optional): List of EMA windows. Defaults to None
+        bb_params (Optional[Dict[str, int]], optional): Bollinger Bands parameters. Defaults to None
+        
+    Returns:
+        int: Maximum lookback window needed for all indicators
+    """
+    windows = [rsi_window]
+    
+    if macd_params is not None:
+        windows.extend([
+            macd_params.get('window_slow', 26),
+            macd_params.get('window_fast', 12),
+            macd_params.get('window_sign', 9)
+        ])
+    
+    if ema_windows is not None:
+        windows.extend(ema_windows)
+    
+    if bb_params is not None:
+        windows.append(bb_params.get('window', 20))
+    
+    return max(windows)
+
 def add_technical_indicators(
     df: pd.DataFrame,
     rsi_window: int = 14,
@@ -154,4 +189,69 @@ def add_technical_indicators(
         df['bb_middle'] = bb_data['middle']
         df['bb_lower'] = bb_data['lower']
     
-    return df 
+    return df
+
+def calculate_indicators_incremental(
+    new_data: pd.DataFrame,
+    existing_data: Optional[pd.DataFrame] = None,
+    rsi_window: int = 14,
+    macd_params: Optional[Dict[str, int]] = None,
+    ema_windows: Optional[List[int]] = None,
+    bb_params: Optional[Dict[str, int]] = None
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Calculate technical indicators for new data efficiently by using existing data for lookback.
+    
+    Args:
+        new_data (pd.DataFrame): New price data to calculate indicators for
+        existing_data (Optional[pd.DataFrame], optional): Existing data with indicators.
+            If None, will calculate for all new data. Defaults to None
+        rsi_window (int, optional): RSI window period. Defaults to 14
+        macd_params (Optional[Dict[str, int]], optional): MACD parameters. Defaults to None
+        ema_windows (Optional[List[int]], optional): List of EMA windows. Defaults to None
+        bb_params (Optional[Dict[str, int]], optional): Bollinger Bands parameters. Defaults to None
+        
+    Returns:
+        Tuple[pd.DataFrame, pd.DataFrame]: Tuple containing:
+            - DataFrame with indicators for new data only
+            - Complete DataFrame with all data and indicators
+    """
+    # Get required lookback window
+    lookback = get_lookback_window(rsi_window, macd_params, ema_windows, bb_params)
+    
+    if existing_data is not None:
+        # Get lookback data from existing dataset
+        lookback_data = existing_data.tail(lookback)
+        
+        # Combine lookback data with new data
+        combined_data = pd.concat([lookback_data, new_data])
+        
+        # Calculate indicators on combined data
+        combined_with_indicators = add_technical_indicators(
+            combined_data,
+            rsi_window=rsi_window,
+            macd_params=macd_params,
+            ema_windows=ema_windows,
+            bb_params=bb_params
+        )
+        
+        # Extract only the new data with indicators
+        new_with_indicators = combined_with_indicators.iloc[lookback:]
+        
+        # Combine with existing data
+        complete_data = pd.concat([
+            existing_data,
+            new_with_indicators
+        ]).drop_duplicates(subset=['timestamp']).sort_values('timestamp')
+        
+        return new_with_indicators, complete_data
+    else:
+        # If no existing data, calculate indicators for all new data
+        new_with_indicators = add_technical_indicators(
+            new_data,
+            rsi_window=rsi_window,
+            macd_params=macd_params,
+            ema_windows=ema_windows,
+            bb_params=bb_params
+        )
+        return new_with_indicators, new_with_indicators 
