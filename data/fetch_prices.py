@@ -4,6 +4,7 @@ import pandas as pd
 from pathlib import Path
 from binance.client import Client
 from binance.exceptions import BinanceAPIException
+import os
 
 def initialize_binance_client(api_key: str, api_secret: str) -> Client:
     """
@@ -135,59 +136,84 @@ def fetch_price_data(
     api_secret: str,
     symbol: str = 'BTCUSDT',
     interval: str = '1h',
-    days_back: Optional[int] = None,
-    existing_file: str = 'data/historical.csv'
+    existing_file: Optional[str] = None
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Fetch Bitcoin price data, either initial batch or incremental update.
+    Fetch historical price data from Binance.
+    If existing_file is provided, only fetches new data since the last entry.
+    Otherwise, fetches maximum available historical data.
     
     Args:
         api_key (str): Binance API key
         api_secret (str): Binance API secret
         symbol (str, optional): Trading pair symbol. Defaults to 'BTCUSDT'
         interval (str, optional): Kline interval. Defaults to '1h'
-        days_back (Optional[int], optional): Number of days of historical data to download.
-            If None, only fetches new data since last available timestamp.
-            Defaults to None
-        existing_file (str, optional): Path to existing data file. 
-            Defaults to 'data/historical.csv'
+        existing_file (Optional[str], optional): Path to existing data file.
+            If provided, only fetches new data. Defaults to None
             
     Returns:
         Tuple[pd.DataFrame, pd.DataFrame]: Tuple containing:
-            - Updated DataFrame with all data
-            - DataFrame with only new data
-            
-    Raises:
-        Exception: If there's an error fetching or processing data
+            - Complete DataFrame with all data
+            - DataFrame with only new data (empty if no new data)
     """
-    # Initialize client
-    client = initialize_binance_client(api_key, api_secret)
+    # Initialize Binance client
+    client = Client(api_key, api_secret)
     
-    # Calculate date range
+    # Get the earliest available data point
+    earliest_timestamp = client.get_historical_klines(
+        symbol=symbol,
+        interval=interval,
+        limit=1,
+        start_str="2017-01-01"  # Binance started in 2017
+    )[0][0]
+    
+    # Convert to datetime
+    start_date = datetime.fromtimestamp(earliest_timestamp / 1000)
     end_date = datetime.now()
     
-    if days_back is not None:
-        # Fetch initial batch
-        start_date = end_date - timedelta(days=days_back)
-        new_df = fetch_historical_klines(client, symbol, start_date, end_date, interval)
-        updated_df = new_df
+    # Load existing data if available
+    existing_data = None
+    if existing_file and os.path.exists(existing_file):
+        existing_data = pd.read_csv(existing_file)
+        existing_data['timestamp'] = pd.to_datetime(existing_data['timestamp'])
+        start_date = existing_data['timestamp'].max()
+    
+    # Fetch klines
+    klines = client.get_historical_klines(
+        symbol=symbol,
+        interval=interval,
+        start_str=start_date.strftime('%Y-%m-%d %H:%M:%S'),
+        end_str=end_date.strftime('%Y-%m-%d %H:%M:%S')
+    )
+    
+    # Convert to DataFrame
+    df = pd.DataFrame(klines, columns=[
+        'timestamp', 'open', 'high', 'low', 'close', 'volume',
+        'close_time', 'quote_volume', 'trades', 'taker_buy_base',
+        'taker_buy_quote', 'ignored'
+    ])
+    
+    # Convert timestamp to datetime
+    df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+    
+    # Convert numeric columns
+    numeric_columns = ['open', 'high', 'low', 'close', 'volume']
+    df[numeric_columns] = df[numeric_columns].apply(pd.to_numeric)
+    
+    # Drop unnecessary columns
+    df = df[['timestamp', 'open', 'high', 'low', 'close', 'volume']]
+    
+    # If we have existing data, merge and sort
+    if existing_data is not None:
+        # Combine existing and new data
+        df = pd.concat([existing_data, df])
+        # Remove duplicates based on timestamp
+        df = df.drop_duplicates(subset=['timestamp'])
+        # Sort by timestamp
+        df = df.sort_values('timestamp')
+        # Get only new data
+        new_data = df[df['timestamp'] > start_date]
     else:
-        # Fetch incremental update
-        existing_df = load_existing_data(existing_file)
-        
-        if existing_df is not None:
-            start_date = get_latest_timestamp(existing_df)
-        else:
-            start_date = end_date - timedelta(hours=24)  # Default to 24h if no existing data
-            
-        new_df = fetch_historical_klines(client, symbol, start_date, end_date, interval)
-        
-        if existing_df is not None:
-            updated_df = merge_and_deduplicate(existing_df, new_df)
-        else:
-            updated_df = new_df
+        new_data = df
     
-    # Save updated data
-    updated_df.to_csv(existing_file, index=False)
-    
-    return updated_df, new_df 
+    return df, new_data 

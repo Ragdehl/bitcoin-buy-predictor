@@ -1,0 +1,100 @@
+{
+    "RSI_14": {
+        "type": "RSI",
+        "window": 14,
+        "enabled": true,
+        "columns": [
+            "RSI_14"
+        ]
+    },
+    "MACD_12_26_9": {
+        "type": "MACD",
+        "fast": 12,
+        "slow": 26,
+        "signal": 9,
+        "enabled": true,
+        "columns": [
+            "MACD_12_26_9_histogram",
+            "MACD_12_26_9_macd",
+            "MACD_12_26_9_signal"
+        ]
+    },
+    "EMA_20": {
+        "type": "EMA",
+        "window": 20,
+        "enabled": true,
+        "columns": [
+            "EMA_20"
+        ]
+    },
+    "EMA_50": {
+        "type": "EMA",
+        "window": 50,
+        "enabled": true,
+        "columns": [
+            "EMA_50"
+        ]
+    },
+    "EMA_200": {
+        "type": "EMA",
+        "window": 200,
+        "enabled": true,
+        "columns": [
+            "EMA_200"
+        ]
+    },
+    "BB_20_2": {
+        "type": "BollingerBands",
+        "window": 20,
+        "std_dev": 2,
+        "enabled": true,
+        "columns": [
+            "BB_20_2_lower",
+            "BB_20_2_middle",
+            "BB_20_2_upper"
+        ]
+    },
+    "CANDLE_SHAPE": {
+        "type": "CandleShape",
+        "include_columns": [
+            "body",
+            "upper_wick",
+            "lower_wick",
+            "range",
+            "color",
+            "body_ratio",
+            "upper_ratio",
+            "lower_ratio"
+        ],
+        "enabled": true,
+        "columns": [
+            "CANDLE_SHAPE_body",
+            "CANDLE_SHAPE_body_ratio",
+            "CANDLE_SHAPE_color",
+            "CANDLE_SHAPE_lower_ratio",
+            "CANDLE_SHAPE_lower_wick",
+            "CANDLE_SHAPE_range",
+            "CANDLE_SHAPE_upper_ratio",
+            "CANDLE_SHAPE_upper_wick"
+        ]
+    },
+    "CANDLE_PATTERNS": {
+        "type": "CandlePatterns",
+        "include_patterns": [
+            "bullish_engulfing",
+            "bearish_engulfing",
+            "three_white_soldiers",
+            "three_black_crows",
+            "doji_then_bull"
+        ],
+        "doji_threshold": 0.1,
+        "enabled": true,
+        "columns": [
+            "CANDLE_PATTERNS_bearish_engulfing",
+            "CANDLE_PATTERNS_bullish_engulfing",
+            "CANDLE_PATTERNS_doji_then_bull",
+            "CANDLE_PATTERNS_three_black_crows",
+            "CANDLE_PATTERNS_three_white_soldiers"
+        ]
+    }
+}
